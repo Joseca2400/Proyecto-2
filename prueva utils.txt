@@ -1,0 +1,113 @@
+#include "utils.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+
+//sign extends a bitfield with given size
+/* You may find implementing this function helpful */
+int bitExtender(unsigned int field, unsigned int size) {
+  // Obtener el bit de signo
+  unsigned int signo = (field >> (size - 1)) & 1;
+
+  // Si el número es negativo (bit más significativo es 1), extendemos con 1s
+  if (signo) {
+      return (int)(field | (~((1 << size) - 1)));  // Llenar los bits superiores con 1s
+  } else {
+      return (int)field;  // Si es positivo, se mantiene igual
+  }
+}
+
+
+/* Distances in BYTES */
+
+int get_branch_distance(Instruction instruction) {
+    // Extraer los diferentes segmentos del offset
+    unsigned int imm_12 = (instruction >> 31) & 0x1;   // Bit 31 (signo)
+    unsigned int imm_11 = (instruction >> 7) & 0x1;    // Bit 7
+    unsigned int imm_10_5 = (instruction >> 25) & 0x3F; // Bits 30-25
+    unsigned int imm_4_1 = (instruction >> 8) & 0xF;   // Bits 11-8
+
+    // Reconstruir el offset en su orden correcto
+    unsigned int offset = (imm_12 << 12) | (imm_11 << 11) | (imm_10_5 << 5) | (imm_4_1 << 1);
+
+    // Extender signo (el offset tiene 13 bits)
+    return bitExtender(offset, 13);
+}
+
+
+int get_jump_distance(Instruction instruction) {
+  unsigned int signo = (field >> (size - 1)) & 1;
+    if (signo) {
+        return (int)(field | (~((1 << size) - 1)));  // Llenar con 1s si es negativo
+    } else {
+        return (int)field;
+    }
+}
+
+/* Calcula la distancia del salto en bytes */
+int get_jump_distance(Instruction instruction) {
+    int opcode = instruction.opcode;
+
+    if (opcode == 0b1100011) {  // Tipo B (BEQ, BNE, BLT, etc.)
+        unsigned int imm_12 = (instruction.imm >> 12) & 0x1;
+        unsigned int imm_11 = (instruction.imm >> 11) & 0x1;
+        unsigned int imm_10_5 = (instruction.imm >> 5) & 0x3F;
+        unsigned int imm_4_1 = (instruction.imm >> 1) & 0xF;
+
+        int offset = (imm_12 << 12) | (imm_11 << 11) | (imm_10_5 << 5) | (imm_4_1 << 1);
+        return bitExtender(offset, 13);
+
+    } else if (opcode == 0b1101111) {  // Tipo J (JAL)
+        unsigned int imm_20 = (instruction.imm >> 20) & 0x1;
+        unsigned int imm_10_1 = (instruction.imm >> 1) & 0x3FF;
+        unsigned int imm_11 = (instruction.imm >> 11) & 0x1;
+        unsigned int imm_19_12 = (instruction.imm >> 12) & 0xFF;
+
+        int offset = (imm_20 << 20) | (imm_19_12 << 12) | (imm_11 << 11) | (imm_10_1 << 1);
+        return bitExtender(offset, 21);
+
+    } else if (opcode == 0b1100111) {  // Tipo I (JALR)
+        int offset = instruction.imm & 0xFFF;
+        return bitExtender(offset, 12);
+    }
+
+    return 0;  // Si no es un tipo válido, retorna 0
+}
+
+/* Offset in BYTES */
+/* Used both in load and store */
+
+int get_memory_offset(Instruction instruction) {
+  int opcode = instruction.opcode;
+
+    if (opcode == 0b0000011) {  // LOAD (LW, LH, LB, etc.)
+        int offset = instruction.imm & 0xFFF;
+        return bitExtender(offset, 12);
+        
+    } else if (opcode == 0b0100011) {  // STORE (SW, SH, SB)
+        unsigned int imm_11_5 = (instruction.imm >> 5) & 0x7F;
+        unsigned int imm_4_0 = instruction.imm & 0x1F;
+
+        int offset = (imm_11_5 << 5) | imm_4_0;
+        return bitExtender(offset, 12);
+    }
+
+    return 0;  // Si no es un tipo válido, retorna 0
+}
+
+
+void handle_invalid_instruction(Instruction instruction) {
+  printf("Invalid Instruction: 0x%08x\n", instruction.bits);
+}
+
+
+void handle_invalid_read(Address address) {
+  printf("Bad Read. Address: 0x%08x\n", address);
+  exit(-1);
+}
+
+
+void handle_invalid_write(Address address) {
+  printf("Bad Write. Address: 0x%08x\n", address);
+  exit(-1);
+}
